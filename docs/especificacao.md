@@ -1,43 +1,59 @@
 # Especificacao do Sistema de Gerenciamento de Biblioteca
 
-## 1. Casos de Uso - Gerenciamento de Usuarios
+## 1. Casos de Uso do Sistema
 
 Atores:
-- Bibliotecario: Administrador do acervo e registos.
+- Bibliotecario: Administrador do acervo e registros.
 - Usuario: Entidade base que pode ser Aluno ou Professor.
 
-### Descricao dos Casos de Uso:
-- UC01 - Cadastrar Usuario: O Bibliotecario cadastra Aluno ou Professor informando nome, email, matricula, login e senha. O sistema valida regras estritas de formato e unicidade.
-- UC02 - Listar Usuarios: O sistema lista todos os usuarios persistidos no mecanismo ativo (RAM ou Ficheiro Binario).
-- UC03 - Buscar Usuario por Matricula: Permite localizar uma entidade atraves da matricula institucional.
+### Casos de Uso de Usuarios:
+- UC01 - Cadastrar Usuario: O Bibliotecario cadastra Aluno ou Professor com matricula, nome, email, login e senha forte (politica AWS IAM).
+- UC02 - Listar Usuarios: Exibe todos os usuarios do mecanismo ativo.
+- UC03 - Buscar Usuario por Matricula: Localiza usuario pela matricula institucional.
 
-## 2. Diagrama de Classes e Arquitetura (Sprint 2)
+### Casos de Uso de Livros (CRUD):
+- UC04 - Cadastrar Livro: Registra livro com ISBN unico, titulo, autor e ano.
+- UC05 - Buscar Livro por ISBN: Consulta informacoes detalhadas da obra.
+- UC06 - Atualizar Livro: Permite alterar dados da obra ou associar um usuario locatario.
+- UC07 - Remover Livro: Remove a obra do acervo caso nao esteja emprestada.
+- UC08 - Listar Livros: Lista todas as obras ou filtra por usuario locatario.
+
+---
+
+## 2. Diagrama de Classes e Arquitetura (Sprint 3 - Facade & Singleton)
 
 Relacoes estruturais:
-- IUsuarioRepository (Interface):
-  + salvar(usuario)
-  + buscar_por_matricula(matricula)
-  + buscar_por_login(login)
-  + buscar_por_email(email)
-  + listar_todos()
+- FacadeSingletonController (Singleton & Facade):
+  Ponto de acesso unico para todas as operacoes de controle da aplicacao.
+  + get_instance(usuario_repo, livro_repo)
+  + obter_quantidade_entidades(): dict (retorna total de usuarios e livros cadastrados)
+  + operacoes delegadas para UsuarioService e LivroService
 
-- Implementacoes de IUsuarioRepository:
-  * UsuarioRepositoryMemory (colecao em memoria RAM)
-  * UsuarioRepositoryBinary (colecao persistida em ficheiro binario .bin, tratando IOError/OSError e lancando PersistenciaException)
+- Controladores / Servicos:
+  * UsuarioService: regras de validacao de login/senha e persistencia de usuarios.
+  * LivroService: regras de validacao, integridade de ISBN e CRUD completo de livros.
 
-- UsuarioService (Controlo e Regras):
-  * Valida formato do login (max 12 caracteres, sem digitos numericos)
-  * Valida complexidade da senha (politica AWS IAM: min 8 caracteres, maiuscula, minuscula, numero, simbolo e diferente do login)
-  * Valida unicidade de matricula, email e login
+- Repositorios (Interfaces e Persistencia desacoplada):
+  * IUsuarioRepository -> UsuarioRepositoryMemory / UsuarioRepositoryBinary
+  * ILivroRepository   -> LivroRepositoryMemory   / LivroRepositoryBinary
 
-- Entidades de Dominio:
-  * Usuario (classe base com matricula, nome, email, login, senha, limite_livros)
-  * Aluno (especializacao com limite de 3 livros)
-  * Professor (especializacao com limite de 5 livros)
+- Entidades:
+  * Usuario (Aluno, Professor)
+  * Livro (isbn, titulo, autor, ano, matricula_locatario)
 
-## 3. Politicas de Validacao e Excecoes de Dominio
+---
 
-- LoginInvalidoException: Login vazio, superior a 12 caracteres ou contendo algarismos.
-- SenhaFracaException: Senha com menos de 8 caracteres, sem variedade de classes de caracteres ou identica ao login.
-- UsuarioDuplicadoException: Matricula, email ou login ja existentes.
-- PersistenciaException: Falhas de leitura/escrita em disco no repositorio binario.
+## 3. Politicas de Validacao e Excecoes
+
+- Usuario:
+  * LoginInvalidoException: login vazio, > 12 chars ou com digitos numericos.
+  * SenhaFracaException: violacao das regras de complexidade AWS IAM.
+  * UsuarioDuplicadoException: matricula, email ou login duplicados.
+
+- Livro:
+  * LivroInvalidoException: dados obrigatorios vazios ou ano inconsistente.
+  * LivroDuplicadoException: ISBN ja existente no acervo.
+  * LivroNaoEncontradoException: busca/edicao/remocao de ISBN inexistente.
+
+- Persistencia:
+  * PersistenciaException: falhas de leitura/escrita em arquivo binario (.bin).
