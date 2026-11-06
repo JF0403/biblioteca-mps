@@ -43,6 +43,8 @@ class Usuario(ABC):
     def _validar_senha(senha: str, login: str) -> None:
         if not senha or len(senha) < 8:
             raise SenhaFracaException("A senha deve ter no mínimo 8 caracteres (política AWS IAM).")
+        if login and senha.strip().lower() == login.strip().lower():
+            raise SenhaFracaException("A senha não pode ser igual ao login.")
         if not re.search(r"[A-Z]", senha):
             raise SenhaFracaException("A senha deve conter ao menos uma letra maiúscula.")
         if not re.search(r"[a-z]", senha):
@@ -52,8 +54,6 @@ class Usuario(ABC):
         caracteres_especiais = "!@#$%^&*()_+-=[]{}|':;,.<>?/~`"
         if not any(char in caracteres_especiais for char in senha):
             raise SenhaFracaException("A senha deve conter ao menos um caractere especial.")
-        if login and senha.strip().lower() == login.strip().lower():
-            raise SenhaFracaException("A senha não pode ser igual ao login.")
 
     def obter_tipo(self) -> str:
         return self.__class__.__name__
