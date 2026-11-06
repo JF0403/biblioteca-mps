@@ -4,7 +4,7 @@ from src.domain.entities.usuario import Usuario
 
 
 class UsuarioRepositoryMemory(IUsuarioRepository):
-    """Implementacao de repositorio desacoplado utilizando dicionario/colecao em memoria RAM."""
+    """Implementação desacoplada utilizando coleção em memória RAM."""
 
     def __init__(self) -> None:
         self._usuarios: Dict[str, Usuario] = {}
@@ -19,6 +19,13 @@ class UsuarioRepositoryMemory(IUsuarioRepository):
         email_limpo = email.strip().lower()
         for usuario in self._usuarios.values():
             if usuario.email.lower() == email_limpo:
+                return usuario
+        return None
+
+    def buscar_por_login(self, login: str) -> Optional[Usuario]:
+        login_limpo = login.strip().lower()
+        for usuario in self._usuarios.values():
+            if usuario.login.lower() == login_limpo:
                 return usuario
         return None
 
