@@ -1,6 +1,5 @@
 from src.application.services.usuario_service import UsuarioService
 from src.infrastructure.memory.usuario_repository_memory import UsuarioRepositoryMemory
-from src.presentation.cli.py import UserCLI # noqa
 from src.presentation.cli import UserCLI
 
 
