@@ -27,6 +27,7 @@ class UserCLI:
         print("9. Emprestar Livro a Usuário")
         print("10. Devolver Livro")
         print("11. Exportar Relatório de Estatísticas")
+        print("12. Desfazer Última Atualização de Livro")
         print("\n0. Sair")
 
     def executar(self) -> None:
@@ -112,9 +113,9 @@ class UserCLI:
                 titulo = input("Novo título: ").strip() or None
                 autor = input("Novo autor: ").strip() or None
                 ano_str = input("Novo ano: ").strip()
-                ano = int(ano_str) if ano_str else None
 
                 try:
+                    ano = int(ano_str) if ano_str else None
                     livro = self._facade.atualizar_livro(isbn, titulo, autor, ano)
                     print(f"Sucesso: Livro '{livro.isbn}' atualizado!")
                 except (LivroException, ValueError) as erro:
@@ -154,6 +155,17 @@ class UserCLI:
                     print(f"Sucesso: Relatório gerado e salvo no arquivo '{caminho}'!")
                 except ValueError as erro:
                     print(f"Erro ao gerar relatório: {erro}")
+
+            elif opcao == "12":
+                try:
+                    livro = self._facade.desfazer_ultima_atualizacao_livro()
+                    print(
+                        f"Sucesso: Última atualização desfeita! "
+                        f"Livro '{livro.isbn}' restaurado para: "
+                        f"Título='{livro.titulo}', Autor='{livro.autor}', Ano={livro.ano}"
+                    )
+                except LivroException as erro:
+                    print(f"Erro ao desfazer atualização: {erro}")
 
             else:
                 print("Opção inválida. Tente novamente.")

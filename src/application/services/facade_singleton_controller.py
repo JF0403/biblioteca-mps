@@ -1,8 +1,25 @@
 from typing import Any, Dict, List, Optional
+from src.application.commands.biblioteca_commands import (
+    AtualizarLivroCommand,
+    BuscarLivroPorIsbnCommand,
+    BuscarUsuarioPorMatriculaCommand,
+    CadastrarLivroCommand,
+    CadastrarUsuarioCommand,
+    DesfazerUltimaAtualizacaoLivroCommand,
+    DevolverLivroCommand,
+    EmprestarLivroCommand,
+    ExportarRelatorioEstatisticasCommand,
+    ListarLivrosCommand,
+    ListarLivrosPorLocatarioCommand,
+    ListarUsuariosCommand,
+    ObterQuantidadeEntidadesCommand,
+    RemoverLivroCommand,
+)
+from src.application.commands.command import CommandInvoker
 from src.application.contracts.livro_repository import ILivroRepository
 from src.application.contracts.usuario_repository import IUsuarioRepository
+from src.application.memento.livro_memento import LivroCaretaker, LivroOriginator
 from src.application.services.livro_service import LivroService
-from src.application.services.relatorio_template import RelatorioEstatisticasHTML, RelatorioEstatisticasTXT
 from src.application.services.usuario_service import UsuarioService
 from src.domain.entities.livro import Livro
 from src.domain.entities.usuario import Usuario
@@ -10,7 +27,7 @@ from src.infrastructure.adapters.logger_adapter import ILogger, PythonLoggerAdap
 
 
 class FacadeSingletonController:
-    """Fachada única (Facade) com instância única (Singleton) para os Gerentes/Controllers."""
+    """Fachada única (Facade + Singleton) que orquestra operações via Command e Memento."""
 
     _instancia: Optional["FacadeSingletonController"] = None
 
@@ -40,8 +57,13 @@ class FacadeSingletonController:
             usuario_repository=self._usuario_repo
         )
 
-        # Padrão Adapter instanciado
+        # Padrão Adapter (Logger) + Invoker (Command)
         self._logger: ILogger = PythonLoggerAdapter()
+        self._invoker = CommandInvoker(self._logger)
+
+        # Padrão Memento (Originator + Caretaker para Livro)
+        self._livro_originator = LivroOriginator(self._livro_service)
+        self._livro_caretaker = LivroCaretaker()
 
         self._logger.log_info("FacadeSingletonController inicializado com sucesso.")
         self._inicializado = True
@@ -64,19 +86,13 @@ class FacadeSingletonController:
         """Método utilitário para resetar a instância em baterias de testes."""
         cls._instancia = None
 
-    # --- Método exigido pela Sprint 3: Quantidade de Entidades ---
+    # --- Contagem de Entidades ---
 
     def obter_quantidade_entidades(self) -> Dict[str, int]:
-        """Retorna a contagem das entidades cadastradas no sistema."""
-        total_usuarios = len(self._usuario_service.listar_usuarios())
-        total_livros = len(self._livro_service.listar_livros())
-        return {
-            "usuarios": total_usuarios,
-            "livros": total_livros,
-            "total": total_usuarios + total_livros
-        }
+        comando = ObterQuantidadeEntidadesCommand(self._usuario_service, self._livro_service)
+        return self._invoker.executar(comando)
 
-    # --- Fachada para Operações de Usuários ---
+    # --- Operações de Usuários ---
 
     def cadastrar_usuario(
         self,
@@ -87,40 +103,42 @@ class FacadeSingletonController:
         login: str,
         senha: str
     ) -> Usuario:
-        try:
-            user = self._usuario_service.cadastrar_usuario(
-                tipo=tipo,
-                matricula=matricula,
-                nome=nome,
-                email=email,
-                login=login,
-                senha=senha
-            )
-            self._logger.log_info(f"Usuário cadastrado com sucesso: {login}")
-            return user
-        except Exception as e:
-            self._logger.log_error(f"Erro ao cadastrar usuário {login}: {str(e)}")
-            raise e
+        comando = CadastrarUsuarioCommand(
+            usuario_service=self._usuario_service,
+            tipo=tipo,
+            matricula=matricula,
+            nome=nome,
+            email=email,
+            login=login,
+            senha=senha
+        )
+        return self._invoker.executar(comando)
 
     def listar_usuarios(self) -> List[Usuario]:
-        return self._usuario_service.listar_usuarios()
+        comando = ListarUsuariosCommand(self._usuario_service)
+        return self._invoker.executar(comando)
 
     def buscar_usuario_por_matricula(self, matricula: str) -> Optional[Usuario]:
-        return self._usuario_repo.buscar_por_matricula(matricula)
+        comando = BuscarUsuarioPorMatriculaCommand(self._usuario_repo, matricula)
+        return self._invoker.executar(comando)
 
-    # --- Fachada para Operações de Livros (CRUD Completo) ---
+    # --- Operações de Livros (CRUD + Empréstimo + Memento) ---
 
     def cadastrar_livro(self, isbn: str, titulo: str, autor: str, ano: int) -> Livro:
-        return self._livro_service.cadastrar_livro(isbn, titulo, autor, ano)
+        comando = CadastrarLivroCommand(self._livro_service, isbn, titulo, autor, ano)
+        return self._invoker.executar(comando)
 
     def buscar_livro_por_isbn(self, isbn: str) -> Livro:
-        return self._livro_service.buscar_por_isbn(isbn)
+        comando = BuscarLivroPorIsbnCommand(self._livro_service, isbn)
+        return self._invoker.executar(comando)
 
     def listar_livros(self) -> List[Livro]:
-        return self._livro_service.listar_livros()
+        comando = ListarLivrosCommand(self._livro_service)
+        return self._invoker.executar(comando)
 
     def listar_livros_por_locatario(self, matricula: str) -> List[Livro]:
-        return self._livro_service.listar_livros_por_locatario(matricula)
+        comando = ListarLivrosPorLocatarioCommand(self._livro_service, matricula)
+        return self._invoker.executar(comando)
 
     def atualizar_livro(
         self,
@@ -129,29 +147,43 @@ class FacadeSingletonController:
         autor: Optional[str] = None,
         ano: Optional[int] = None
     ) -> Livro:
-        return self._livro_service.atualizar_livro(isbn, titulo, autor, ano)
+        comando = AtualizarLivroCommand(
+            livro_service=self._livro_service,
+            originator=self._livro_originator,
+            caretaker=self._livro_caretaker,
+            isbn=isbn,
+            titulo=titulo,
+            autor=autor,
+            ano=ano
+        )
+        return self._invoker.executar(comando)
+
+    def desfazer_ultima_atualizacao_livro(self) -> Livro:
+        comando = DesfazerUltimaAtualizacaoLivroCommand(
+            originator=self._livro_originator,
+            caretaker=self._livro_caretaker
+        )
+        return self._invoker.executar(comando)
 
     def remover_livro(self, isbn: str) -> bool:
-        return self._livro_service.remover_livro(isbn)
+        comando = RemoverLivroCommand(self._livro_service, isbn)
+        return self._invoker.executar(comando)
 
     def emprestar_livro(self, isbn: str, matricula_usuario: str) -> Livro:
-        return self._livro_service.associar_locatario(isbn, matricula_usuario)
+        comando = EmprestarLivroCommand(self._livro_service, isbn, matricula_usuario)
+        return self._invoker.executar(comando)
 
     def devolver_livro(self, isbn: str) -> Livro:
-        return self._livro_service.desassociar_locatario(isbn)
+        comando = DevolverLivroCommand(self._livro_service, isbn)
+        return self._invoker.executar(comando)
 
-    # --- Exportação de Relatórios (Template Method) ---
+    # --- Exportação de Relatórios (Template Method via Command) ---
 
     def exportar_relatorio_estatisticas(self, formato: str, caminho_arquivo: str) -> str:
-        estatisticas = self.obter_quantidade_entidades()
-
-        if formato.lower() == "html":
-            gerador = RelatorioEstatisticasHTML()
-        elif formato.lower() == "txt":
-            gerador = RelatorioEstatisticasTXT()
-        else:
-            raise ValueError("Formato de relatório não suportado. Use 'html' ou 'txt'.")
-
-        conteudo = gerador.gerar_relatorio(estatisticas, caminho_arquivo)
-        self._logger.log_info(f"Relatório {formato.upper()} gerado em {caminho_arquivo}")
-        return conteudo
+        comando = ExportarRelatorioEstatisticasCommand(
+            usuario_service=self._usuario_service,
+            livro_service=self._livro_service,
+            formato=formato,
+            caminho_arquivo=caminho_arquivo
+        )
+        return self._invoker.executar(comando)
