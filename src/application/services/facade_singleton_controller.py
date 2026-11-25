@@ -2,9 +2,11 @@ from typing import Any, Dict, List, Optional
 from src.application.contracts.livro_repository import ILivroRepository
 from src.application.contracts.usuario_repository import IUsuarioRepository
 from src.application.services.livro_service import LivroService
+from src.application.services.relatorio_template import RelatorioEstatisticasHTML, RelatorioEstatisticasTXT
 from src.application.services.usuario_service import UsuarioService
 from src.domain.entities.livro import Livro
 from src.domain.entities.usuario import Usuario
+from src.infrastructure.adapters.logger_adapter import ILogger, PythonLoggerAdapter
 
 
 class FacadeSingletonController:
@@ -37,6 +39,11 @@ class FacadeSingletonController:
             livro_repository=self._livro_repo,
             usuario_repository=self._usuario_repo
         )
+
+        # Padrão Adapter instanciado
+        self._logger: ILogger = PythonLoggerAdapter()
+
+        self._logger.log_info("FacadeSingletonController inicializado com sucesso.")
         self._inicializado = True
 
     @classmethod
@@ -80,14 +87,20 @@ class FacadeSingletonController:
         login: str,
         senha: str
     ) -> Usuario:
-        return self._usuario_service.cadastrar_usuario(
-            tipo=tipo,
-            matricula=matricula,
-            nome=nome,
-            email=email,
-            login=login,
-            senha=senha
-        )
+        try:
+            user = self._usuario_service.cadastrar_usuario(
+                tipo=tipo,
+                matricula=matricula,
+                nome=nome,
+                email=email,
+                login=login,
+                senha=senha
+            )
+            self._logger.log_info(f"Usuário cadastrado com sucesso: {login}")
+            return user
+        except Exception as e:
+            self._logger.log_error(f"Erro ao cadastrar usuário {login}: {str(e)}")
+            raise e
 
     def listar_usuarios(self) -> List[Usuario]:
         return self._usuario_service.listar_usuarios()
@@ -126,3 +139,19 @@ class FacadeSingletonController:
 
     def devolver_livro(self, isbn: str) -> Livro:
         return self._livro_service.desassociar_locatario(isbn)
+
+    # --- Exportação de Relatórios (Template Method) ---
+
+    def exportar_relatorio_estatisticas(self, formato: str, caminho_arquivo: str) -> str:
+        estatisticas = self.obter_quantidade_entidades()
+
+        if formato.lower() == "html":
+            gerador = RelatorioEstatisticasHTML()
+        elif formato.lower() == "txt":
+            gerador = RelatorioEstatisticasTXT()
+        else:
+            raise ValueError("Formato de relatório não suportado. Use 'html' ou 'txt'.")
+
+        conteudo = gerador.gerar_relatorio(estatisticas, caminho_arquivo)
+        self._logger.log_info(f"Relatório {formato.upper()} gerado em {caminho_arquivo}")
+        return conteudo
