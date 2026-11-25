@@ -10,10 +10,10 @@ class UserCLI:
 
     def exibir_menu(self) -> None:
         totais = self._facade.obter_quantidade_entidades()
-        print(f"\n=======================================================")
+        print("\n=======================================================")
         print(f" SISTEMA DE BIBLIOTECA [{self._nome_mecanismo}]")
         print(f" Total no Acervo: {totais['total']} entidades ({totais['usuarios']} usuários | {totais['livros']} livros)")
-        print(f"=======================================================")
+        print("=======================================================")
         print("--- Gerenciamento de Usuários ---")
         print("1. Cadastrar Aluno")
         print("2. Cadastrar Professor")
@@ -26,6 +26,7 @@ class UserCLI:
         print("8. Remover Livro")
         print("9. Emprestar Livro a Usuário")
         print("10. Devolver Livro")
+        print("11. Exportar Relatório de Estatísticas")
         print("\n0. Sair")
 
     def executar(self) -> None:
@@ -143,6 +144,16 @@ class UserCLI:
                     print(f"Sucesso: Livro '{livro.titulo}' devolvido ao acervo!")
                 except LivroException as erro:
                     print(f"Erro na devolução: {erro}")
+
+            elif opcao == "11":
+                print("\n--- Exportar Relatório ---")
+                formato = input("Qual o formato desejado? (html/txt): ").strip().lower()
+                caminho = f"estatisticas.{formato}"
+                try:
+                    self._facade.exportar_relatorio_estatisticas(formato, caminho)
+                    print(f"Sucesso: Relatório gerado e salvo no arquivo '{caminho}'!")
+                except ValueError as erro:
+                    print(f"Erro ao gerar relatório: {erro}")
 
             else:
                 print("Opção inválida. Tente novamente.")

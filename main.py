@@ -1,10 +1,7 @@
 import sys
 from src.application.services.facade_singleton_controller import FacadeSingletonController
 from src.domain.exceptions.usuario_exceptions import PersistenciaException
-from src.infrastructure.binary.livro_repository_binary import LivroRepositoryBinary
-from src.infrastructure.binary.usuario_repository_binary import UsuarioRepositoryBinary
-from src.infrastructure.memory.livro_repository_memory import LivroRepositoryMemory
-from src.infrastructure.memory.usuario_repository_memory import UsuarioRepositoryMemory
+from src.infrastructure.factories.repository_factory import BinaryRepositoryFactory, MemoryRepositoryFactory
 from src.presentation.cli import UserCLI
 
 
@@ -16,15 +13,17 @@ def inicializar_fachada():
     while True:
         opcao = input("Selecione o mecanismo de armazenamento: ").strip()
         if opcao == "1":
-            user_repo = UsuarioRepositoryMemory()
-            book_repo = LivroRepositoryMemory()
-            facade = FacadeSingletonController(user_repo, book_repo)
+            factory = MemoryRepositoryFactory()
+            usuario_repo = factory.criar_usuario_repository()
+            livro_repo = factory.criar_livro_repository()
+            facade = FacadeSingletonController.get_instance(usuario_repo, livro_repo)
             return facade, "Memória RAM"
         elif opcao == "2":
             try:
-                user_repo = UsuarioRepositoryBinary("usuarios.bin")
-                book_repo = LivroRepositoryBinary("livros.bin")
-                facade = FacadeSingletonController(user_repo, book_repo)
+                factory = BinaryRepositoryFactory()
+                usuario_repo = factory.criar_usuario_repository()
+                livro_repo = factory.criar_livro_repository()
+                facade = FacadeSingletonController.get_instance(usuario_repo, livro_repo)
                 return facade, "Arquivo Binário"
             except PersistenciaException as erro:
                 print(f"Falha ao iniciar repositórios binários: {erro}")
